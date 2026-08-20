@@ -2,7 +2,11 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import controllers
 from database import get_db
-
+# [CRITICAL] Hardcoded Credentials
+# Arquivo: app.py:8
+# Descrição: SECRET_KEY está armazenada diretamente no código.
+# Impacto: Segredo pode ser exposto no repositório.
+# Recomendação: Utilizar variável de ambiente e módulo de configuração.
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "minha-chave-super-secreta-123"
 app.config["DEBUG"] = True
@@ -44,10 +48,12 @@ def index():
         }
     })
 
+#não é uma boa pratica deixar resetar banco de dados
 @app.route("/admin/reset-db", methods=["POST"])
 def reset_database():
     db = get_db()
     cursor = db.cursor()
+    #sql injection 
     cursor.execute("DELETE FROM itens_pedido")
     cursor.execute("DELETE FROM pedidos")
     cursor.execute("DELETE FROM produtos")

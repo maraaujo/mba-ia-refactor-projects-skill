@@ -70,6 +70,7 @@ def deletar_produto(id):
     return True
 
 def get_todos_usuarios():
+    #não pode retornar senha
     db = get_db()
     cursor = db.cursor()
     cursor.execute("SELECT * FROM usuarios")

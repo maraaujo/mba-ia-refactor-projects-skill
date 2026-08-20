@@ -1,9 +1,9 @@
 import sqlite3
 import os
-
+#banco não pode ser global
 db_connection = None
 db_path = "loja.db"
-
+# achado injection
 def get_db():
     global db_connection
     if db_connection is None:
@@ -52,6 +52,7 @@ def get_db():
             )
         """)
         db_connection.commit()
+
 
         cursor.execute("SELECT COUNT(*) FROM produtos")
         if cursor.fetchone()[0] == 0:
