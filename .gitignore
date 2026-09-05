@@ -1,12 +1,21 @@
-.env
-node_modules/
-
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
-
-# SQLite
-*.db
 instance/
+*.db
+
+# Node
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
