@@ -66,25 +66,32 @@ def get_todos_pedidos():
     return _montar_pedidos_a_partir_das_linhas(cursor.fetchall())
 
 
-def criar_pedido_registro(usuario_id, status, total):
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute(
-        "INSERT INTO pedidos (usuario_id, status, total) VALUES (?, ?, ?)",
-        (usuario_id, status, total),
-    )
-    db.commit()
-    return cursor.lastrowid
+def registrar_pedido(usuario_id, status, total, itens):
+    """Grava pedido, itens e baixa de estoque em uma única transação.
 
-
-def criar_item_pedido(pedido_id, produto_id, quantidade, preco_unitario):
+    Se qualquer comando falhar, nada é persistido (rollback automático do
+    context manager da conexão sqlite3).
+    """
     db = get_db()
-    cursor = db.cursor()
-    cursor.execute(
-        "INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-        (pedido_id, produto_id, quantidade, preco_unitario),
-    )
-    db.commit()
+    with db:
+        cursor = db.cursor()
+        cursor.execute(
+            "INSERT INTO pedidos (usuario_id, status, total) VALUES (?, ?, ?)",
+            (usuario_id, status, total),
+        )
+        pedido_id = cursor.lastrowid
+
+        for item in itens:
+            cursor.execute(
+                "INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
+                (pedido_id, item["produto_id"], item["quantidade"], item["preco_unitario"]),
+            )
+            cursor.execute(
+                "UPDATE produtos SET estoque = estoque - ? WHERE id = ?",
+                (item["quantidade"], item["produto_id"]),
+            )
+
+    return pedido_id
 
 
 def atualizar_status_pedido(pedido_id, novo_status):

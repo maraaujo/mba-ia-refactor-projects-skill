@@ -28,6 +28,15 @@ def _validar_dados_produto(dados):
     estoque = dados["estoque"]
     categoria = dados.get("categoria", CATEGORIA_PADRAO)
 
+    if not isinstance(nome, str):
+        raise ValidationError("Nome deve ser um texto")
+    if not isinstance(descricao, str):
+        raise ValidationError("Descrição deve ser um texto")
+    if isinstance(preco, bool) or not isinstance(preco, (int, float)):
+        raise ValidationError("Preço deve ser numérico")
+    if isinstance(estoque, bool) or not isinstance(estoque, int):
+        raise ValidationError("Estoque deve ser um número inteiro")
+
     if preco < 0:
         raise ValidationError("Preço não pode ser negativo")
     if estoque < 0:
@@ -76,10 +85,17 @@ def deletar_produto(produto_id):
     logger.info("Produto %s deletado", produto_id)
 
 
+def _converter_preco_filtro(valor, nome_parametro):
+    if valor is None:
+        return None
+    try:
+        return float(valor)
+    except ValueError:
+        raise ValidationError(f"{nome_parametro} deve ser numérico")
+
+
 def buscar_produtos(termo, categoria, preco_min, preco_max):
-    if preco_min is not None:
-        preco_min = float(preco_min)
-    if preco_max is not None:
-        preco_max = float(preco_max)
+    preco_min = _converter_preco_filtro(preco_min, "preco_min")
+    preco_max = _converter_preco_filtro(preco_max, "preco_max")
 
     return produto_model.buscar_produtos(termo, categoria, preco_min, preco_max)

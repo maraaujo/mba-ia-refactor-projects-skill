@@ -1,18 +1,43 @@
 import logging
 
-from constants import STATUS_PEDIDO_APROVADO, STATUS_PEDIDO_CANCELADO, STATUS_PEDIDO_PADRAO, STATUS_PEDIDO_VALIDOS
+from constants import (
+    QUANTIDADE_MINIMA_ITEM,
+    STATUS_PEDIDO_APROVADO,
+    STATUS_PEDIDO_CANCELADO,
+    STATUS_PEDIDO_PADRAO,
+    STATUS_PEDIDO_VALIDOS,
+)
 from errors import ValidationError
 from models import pedido_model, produto_model
 
 logger = logging.getLogger(__name__)
 
 
+def _eh_inteiro(valor):
+    # bool é subclasse de int em Python; True/False não são quantidades válidas.
+    return isinstance(valor, int) and not isinstance(valor, bool)
+
+
+def _validar_formato_itens(itens):
+    if not isinstance(itens, list):
+        raise ValidationError("Itens devem ser uma lista")
+
+    for item in itens:
+        if not isinstance(item, dict):
+            raise ValidationError("Cada item deve conter produto_id e quantidade")
+        if not _eh_inteiro(item.get("produto_id")):
+            raise ValidationError("produto_id deve ser um número inteiro")
+        if not _eh_inteiro(item.get("quantidade")) or item["quantidade"] < QUANTIDADE_MINIMA_ITEM:
+            raise ValidationError(f"Quantidade deve ser um inteiro maior ou igual a {QUANTIDADE_MINIMA_ITEM}")
+
+
 def _validar_e_calcular_itens(itens):
     total = 0
     itens_validados = []
+    produtos = produto_model.get_produtos_por_ids([item["produto_id"] for item in itens])
 
     for item in itens:
-        produto = produto_model.get_produto_por_id(item["produto_id"])
+        produto = produtos.get(item["produto_id"])
         if produto is None:
             raise ValidationError(f"Produto {item['produto_id']} não encontrado")
         if produto["estoque"] < item["quantidade"]:
@@ -40,14 +65,10 @@ def criar_pedido(usuario_id, itens):
     if not itens:
         raise ValidationError("Pedido deve ter pelo menos 1 item")
 
+    _validar_formato_itens(itens)
     itens_validados, total = _validar_e_calcular_itens(itens)
 
-    pedido_id = pedido_model.criar_pedido_registro(usuario_id, STATUS_PEDIDO_PADRAO, total)
-    for item in itens_validados:
-        pedido_model.criar_item_pedido(
-            pedido_id, item["produto_id"], item["quantidade"], item["preco_unitario"]
-        )
-        produto_model.decrementar_estoque(item["produto_id"], item["quantidade"])
+    pedido_id = pedido_model.registrar_pedido(usuario_id, STATUS_PEDIDO_PADRAO, total, itens_validados)
 
     _notificar_novo_pedido(pedido_id, usuario_id)
 

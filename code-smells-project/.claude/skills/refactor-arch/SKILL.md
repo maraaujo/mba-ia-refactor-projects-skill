@@ -167,6 +167,33 @@ houver problema dessa severidade no projeto.
 
 Gere o relatório seguindo `report-template.md`.
 
+## Campos obrigatórios em TODAS as severidades
+
+Todo finding, seja CRITICAL, HIGH, MEDIUM ou LOW, deve ser registrado
+com o bloco completo de `report-template.md`:
+
+- `File` — caminho real do arquivo auditado;
+- `Line/Snippet` — linha(s) exata(s) ou trecho de código copiado do arquivo;
+- `Description` — o que está errado, em termos técnicos;
+- `Impact` — consequência concreta no projeto;
+- `Recommendation` — ação corretiva específica.
+
+Não existe formato resumido para severidades menores. Não use tabelas nem
+listas de uma linha para os findings, nem um bloco que traga apenas título
+e status. Um campo extra (ex.: `Status` após a Fase 3) pode ser adicionado,
+mas nunca substitui nenhum dos cinco campos acima.
+
+Antes de apresentar o relatório, verifique finding por finding:
+
+1. os cinco campos estão presentes e preenchidos com informação real;
+2. o arquivo e a linha citados existem no código auditado, e o trecho
+   corresponde ao que está nessas linhas;
+3. a contagem do `Summary` é igual ao número de blocos `### [SEVERITY]`.
+
+Se algum finding falhar nessa verificação, complete-o antes de apresentar
+o relatório. Se não for possível apontar arquivo e linha, o problema não
+é um finding e deve ser removido.
+
 ---
 
 # STOP POINT — CONFIRMAÇÃO OBRIGATÓRIA

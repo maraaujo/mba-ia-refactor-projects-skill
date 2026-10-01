@@ -31,6 +31,19 @@ def get_produto_por_id(produto_id):
     return _row_para_dict(row) if row else None
 
 
+def get_produtos_por_ids(produto_ids):
+    """Busca vários produtos em uma única query. Retorna um dict {id: produto}."""
+    ids_unicos = list(set(produto_ids))
+    if not ids_unicos:
+        return {}
+
+    db = get_db()
+    cursor = db.cursor()
+    placeholders = ", ".join("?" for _ in ids_unicos)
+    cursor.execute(f"SELECT * FROM produtos WHERE id IN ({placeholders})", ids_unicos)
+    return {row["id"]: _row_para_dict(row) for row in cursor.fetchall()}
+
+
 def criar_produto(nome, descricao, preco, estoque, categoria):
     db = get_db()
     cursor = db.cursor()
@@ -56,16 +69,6 @@ def deletar_produto(produto_id):
     db = get_db()
     cursor = db.cursor()
     cursor.execute("DELETE FROM produtos WHERE id = ?", (produto_id,))
-    db.commit()
-
-
-def decrementar_estoque(produto_id, quantidade):
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE produtos SET estoque = estoque - ? WHERE id = ?",
-        (quantidade, produto_id),
-    )
     db.commit()
 
 

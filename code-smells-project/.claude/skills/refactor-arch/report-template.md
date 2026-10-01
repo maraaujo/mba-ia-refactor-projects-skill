@@ -60,7 +60,11 @@ Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
    número de blocos `### [SEVERITY] ...` presentes no relatório.
 3. Cada finding é obrigatório ter os 5 campos (`File`, `Line/Snippet`,
    `Description`, `Impact`, `Recommendation`) — um finding sem arquivo/linha não é
-   aceitável, pois não é acionável para a Fase 3.
+   aceitável, pois não é acionável para a Fase 3. **Isso vale para todas as
+   severidades**: findings HIGH, MEDIUM e LOW usam exatamente o mesmo bloco dos
+   CRITICAL, sem versão resumida. Campos adicionais (ex.: `Status` depois da
+   Fase 3) podem ser acrescentados ao final do bloco, mas nunca substituem
+   nenhum dos 5 campos obrigatórios.
 4. **Ordene os findings por severidade**, CRITICAL primeiro, LOW por último. Dentro
    da mesma severidade, a ordem pode seguir a ordem de leitura do código.
 5. O relatório deve conter **no mínimo 5 findings** e, se existir qualquer problema
