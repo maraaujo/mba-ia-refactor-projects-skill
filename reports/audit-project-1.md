@@ -28,13 +28,15 @@
 
 - **Código auditado:** snapshot original do projeto no commit `6d1ce62` (boilerplate do desafio, antes de qualquer alteração). Todos os arquivos e linhas citados em `File` / `Line/Snippet` referem-se a esse snapshot; vários deles (`models.py`, `controllers.py`) não existem mais na árvore atual porque foram substituídos na Fase 3. O commit `1604715` não foi usado porque contém comentários de auditoria escritos à mão dentro do código, o que enviesaria a análise.
 - **Re-execução (2026-09-29):** as Fases 1 e 2 foram executadas de novo depois do reforço da regra de campos obrigatórios em todas as severidades (`SKILL.md` Fase 2, `report-template.md` regra 3). A versão anterior deste relatório trazia os 17 findings HIGH/MEDIUM/LOW apenas com título e status.
-- **Campo `Status`:** a Fase 3 já foi aplicada em 2026-09-05. Cada finding traz um campo extra `Status` que descreve o estado na árvore atual, verificado contra o código de hoje, não copiado do relatório anterior. Esse campo não substitui nenhum dos cinco campos obrigatórios.
+- **Campo `Status`:** cada finding traz um campo extra `Status` com o estado na árvore atual (após a segunda rodada da Fase 3, em 2026-10-08), verificado contra o código, não copiado do relatório anterior. Esse campo não substitui nenhum dos cinco campos obrigatórios.
 - **Diferenças em relação ao relatório anterior:**
-  - novo finding **H6** (quantidade de itens do pedido não validada), que a auditoria anterior não havia registrado e que continua aberto no código atual;
-  - **M1** e **M6** passaram de "corrigido" para "parcialmente corrigido" após verificação no código atual.
+  - novo finding **H6** (quantidade de itens do pedido não validada), que a auditoria anterior não havia registrado — corrigido na segunda rodada da Fase 3;
+  - **M1**, **M6** e **L4** estavam apenas parcialmente corrigidos após a primeira Fase 3. M1 e L4 foram concluídos na segunda rodada; M6 continua parcial (ver o finding).
 - **Histórico:**
   - **2026-09-05** — Fase 3 aplicada: reestruturação para MVC + Service layer.
   - **2026-09-05 (ajuste)** — `POST /admin/query` restaurado como rota inerte (410 Gone) para preservar o contrato dos 19 endpoints; validado com payload `DROP TABLE`.
+  - **2026-10-08** — Segunda rodada da Fase 3, sobre os itens que a re-auditoria encontrou em aberto: H6 (validação de itens e tipos), atomicidade da criação de pedido (observação de H5), M1 (busca de produtos do pedido em uma query) e L4 (e-mails mascarados no log). M6 não foi alterado (ver o finding).
+  - **Validação (2026-10-08):** API executada em container `python:3.12-slim` com as dependências de `requirements.txt`. Passaram `compileall`, imports e boot sem erros, além de 38 checks HTTP contra o servidor real: os 19 endpoints originais, injection no login, 7 payloads inválidos de pedido (quantidade negativa, zero, string, bool, float, `produto_id` string, item/lista malformados), 4 payloads inválidos de produto, filtro de busca não numérico e `reset-db` com e sem token. Também passaram 2 checks de rollback (falha de FK no 2º item não deixa pedido nem baixa de estoque) e 3 checks da máscara de e-mail. Nenhum traceback no log do servidor.
 
 ## Findings
 
@@ -102,7 +104,7 @@
 - **Description:** Senhas são gravadas e comparadas em texto plano. `get_todos_usuarios` e `get_usuario_por_id` incluem o campo `senha` no dicionário retornado, então `GET /usuarios` e `GET /usuarios/<id>` expõem a senha de todos os usuários.
 - **Impact:** Vazamento imediato das credenciais de todos os usuários, inclusive do admin, a qualquer cliente anônimo. Em caso de vazamento do banco, as senhas ficam utilizáveis sem nenhum esforço (e costumam ser reutilizadas em outros serviços).
 - **Recommendation:** Armazenar apenas hash com salt (`werkzeug.security.generate_password_hash` / `check_password_hash`), buscar o usuário por e-mail e verificar o hash na aplicação, e nunca incluir `senha` nas respostas.
-- **Status:** ✅ Corrigido — hash em `services/usuario_service.py:33` e no seed (`schema.py:84`), verificação em `services/usuario_service.py:44`, respostas públicas sem `senha` via `models/usuario_model.py:6` (`_row_para_dict_publico`).
+- **Status:** ✅ Corrigido — hash em `services/usuario_service.py:41` e no seed (`schema.py:84`), verificação em `services/usuario_service.py:52`, respostas públicas sem `senha` via `models/usuario_model.py:6` (`_row_para_dict_publico`).
 
 ### [HIGH] H1 — Modo debug ativo e servidor exposto em todas as interfaces
 - **File:** `app.py`
@@ -136,7 +138,7 @@
 - **Description:** Os controllers fazem mais do que traduzir request/response: aplicam regras de domínio do produto e orquestram efeitos colaterais do pedido (e-mail, SMS, push, notificação de aprovação/cancelamento).
 - **Impact:** As regras não podem ser reutilizadas nem testadas sem o contexto HTTP, e cada novo ponto de entrada precisaria duplicá-las. Isso já acontece em `atualizar_produto` (ver M3).
 - **Recommendation:** Extrair validação e orquestração para uma camada de serviço. O controller deve apenas parsear a entrada, chamar o serviço e montar a resposta.
-- **Status:** ✅ Corrigido — validação em `services/produto_service.py:15-42`, notificações em `services/pedido_service.py:31-34` e `:71-74`. Os controllers atuais (`controllers/*.py`) só fazem parsing e resposta.
+- **Status:** ✅ Corrigido — validação em `services/produto_service.py:15-51`, notificações em `services/pedido_service.py:56-59` e `:92-95`. Os controllers atuais (`controllers/*.py`) só fazem parsing e resposta.
 
 ### [HIGH] H4 — Regras de negócio implementadas na camada de dados
 - **File:** `models.py`
@@ -150,7 +152,7 @@
 - **Description:** `criar_pedido` decide se o pedido é válido e calcula o total, e `relatorio_vendas` define a política comercial de desconto. São regras de domínio misturadas ao SQL.
 - **Impact:** Mudar a política de desconto ou a regra de estoque exige mexer no módulo de persistência, e essas regras não podem ser testadas sem banco. Também alimenta a God-module `models.py` (314 linhas cobrindo 3 domínios).
 - **Recommendation:** Deixar no model apenas leitura e escrita parametrizadas e mover cálculo de total, validação de estoque e desconto para services.
-- **Status:** ✅ Corrigido — `services/pedido_service.py:10-28` (itens e total) e `services/relatorio_service.py:15-22` (desconto). `models/pedido_model.py` contém apenas queries.
+- **Status:** ✅ Corrigido — `services/pedido_service.py:34-53` (itens e total) e `services/relatorio_service.py:15-22` (desconto). `models/pedido_model.py` contém apenas queries.
 
 ### [HIGH] H5 — Conexão de banco global e mutável compartilhada entre threads
 - **File:** `database.py`
@@ -165,7 +167,7 @@
 - **Description:** Uma única conexão, guardada em variável de módulo, atende todas as requisições. `check_same_thread=False` desliga a proteção do `sqlite3` contra uso concorrente. Todas as requisições compartilham também a mesma transação.
 - **Impact:** Transações de requisições diferentes se misturam. Se `criar_pedido` falhar no meio das escritas (`models.py:148-166`, sem rollback), as linhas parciais continuam pendentes e são gravadas pelo próximo `db.commit()` de outra requisição. Requisições concorrentes também podem corromper o estado do cursor.
 - **Recommendation:** Abrir uma conexão por requisição (`flask.g` + `teardown_appcontext`) ou usar um pool, e tratar cada operação de negócio como uma transação com commit/rollback explícito.
-- **Status:** ✅ Corrigido (estado global) — `database.py:15-25` usa `flask.g` e fecha a conexão no teardown. ⚠️ Observação: no código atual, `models/pedido_model.py:76` e `:87` fazem commit a cada insert, então `pedido_service.criar_pedido` não é atômico (uma falha entre os inserts deixa pedido sem itens ou estoque não baixado).
+- **Status:** ✅ Corrigido — `database.py:15-25` usa `flask.g` e fecha a conexão no teardown. A criação de pedido (pedido, itens e baixa de estoque) agora roda em uma única transação em `models/pedido_model.py:69-94` (`registrar_pedido`, `with db:`, com rollback automático). Antes, havia um commit por insert.
 
 ### [HIGH] H6 — Quantidade e tipos dos itens de pedido não são validados
 - **File:** `controllers.py`, `models.py`
@@ -180,7 +182,7 @@
 - **Description:** `quantidade` nunca é validada como inteiro positivo. Uma quantidade negativa passa na checagem de estoque, gera `total` negativo e, no `UPDATE`, *aumenta* o estoque. Valores não numéricos (`"abc"`) causam `TypeError`, que vira HTTP 500. Em produtos, o mesmo vale para `preco`/`estoque` (`controllers.py:43-46`): uma string provoca `TypeError` em vez de 400.
 - **Impact:** Qualquer cliente pode criar pedidos com valor negativo (o faturamento do relatório fica errado) e inflar o estoque arbitrariamente, contornando a regra de estoque.
 - **Recommendation:** Validar no service, antes de qualquer leitura ou escrita, que `produto_id` é inteiro e `quantidade` é inteiro `>= 1`, e que `preco`/`estoque` são numéricos, retornando 400 com mensagem clara.
-- **Status:** ❌ Não corrigido — a mesma lógica sem validação continua em `services/pedido_service.py:14-21`, e `services/produto_service.py:31-34` segue sem checagem de tipo.
+- **Status:** ✅ Corrigido em 2026-10-08 — `services/pedido_service.py:21-31` (`_validar_formato_itens`) exige `itens` como lista de objetos, `produto_id` inteiro e `quantidade` inteira `>= QUANTIDADE_MINIMA_ITEM` (`constants.py:11`), rejeitando `bool`. Tudo é validado antes de qualquer acesso ao banco. `services/produto_service.py:31-38` valida tipos de `nome`, `descricao`, `preco` e `estoque`, e `services/produto_service.py:88-94` devolve 400 para `preco_min`/`preco_max` não numéricos.
 
 ### [MEDIUM] M1 — N+1 queries na listagem e na criação de pedidos
 - **File:** `models.py`
@@ -194,7 +196,7 @@
 - **Description:** Para cada pedido, o código faz uma query de itens e, para cada item, outra query de produto: `1 + P + I` consultas por listagem. Em `criar_pedido`, cada produto é buscado duas vezes (uma na validação, outra no insert).
 - **Impact:** O custo de `GET /pedidos` cresce linearmente com o número de pedidos e itens, e o endpoint degrada rápido com volume real.
 - **Recommendation:** Uma única query com `LEFT JOIN` entre pedidos, itens e produtos, agrupada em memória. Na criação, buscar todos os produtos do pedido de uma vez (`WHERE id IN (...)`) e reaproveitar o resultado.
-- **Status:** ⚠️ Parcialmente corrigido — as listagens usam uma única query com JOIN (`models/pedido_model.py:35-66`). A criação ainda faz uma query por item (`services/pedido_service.py:14-15`), mas não repete mais a busca na fase de insert.
+- **Status:** ✅ Corrigido — as listagens usam uma única query com JOIN (`models/pedido_model.py:35-66`). A criação busca todos os produtos do pedido em uma única query `WHERE id IN (...)` (`models/produto_model.py:34-44`, chamada em `services/pedido_service.py:37`).
 
 ### [MEDIUM] M2 — Duplicação entre `get_pedidos_usuario` e `get_todos_pedidos`
 - **File:** `models.py`
@@ -210,7 +212,7 @@
 - **Description:** O bloco de validação foi copiado e já divergiu: `atualizar_produto` não verifica o tamanho do nome (`controllers.py:47-50`) nem a categoria (`controllers.py:52-54`).
 - **Impact:** `PUT /produtos/<id>` aceita nome de 1 caractere, nome acima de 200 caracteres e categoria inexistente, gravando dados que `POST /produtos` rejeitaria.
 - **Recommendation:** Uma única função de validação usada por criação e atualização.
-- **Status:** ✅ Corrigido — `services/produto_service.py:15-42` (`_validar_dados_produto`) é chamada por `criar_produto` e `atualizar_produto`.
+- **Status:** ✅ Corrigido — `services/produto_service.py:15-51` (`_validar_dados_produto`) é chamada por `criar_produto` e `atualizar_produto`.
 
 ### [MEDIUM] M4 — Ausência de integridade referencial no schema
 - **File:** `database.py`
@@ -271,7 +273,7 @@
 - **Description:** Limites de negócio aparecem como literais sem nome, então não fica claro o que representam nem onde mais são usados.
 - **Impact:** Ajustar um limite exige encontrar o literal certo, e a ausência do limite em `atualizar_produto` (M3) passou despercebida justamente por não haver uma constante compartilhada.
 - **Recommendation:** Constantes nomeadas em módulo único.
-- **Status:** ✅ Corrigido — `constants.py:11-19`, usadas em `services/produto_service.py:35-38` e `services/relatorio_service.py:15-22`.
+- **Status:** ✅ Corrigido — `constants.py:13-21`, usadas em `services/produto_service.py:44-47` e `services/relatorio_service.py:15-22`.
 
 ### [LOW] L4 — `print()` usado como logging, incluindo dados pessoais
 - **File:** `controllers.py`, `app.py`
@@ -282,7 +284,7 @@
 - **Description:** Toda a instrumentação usa `print`, sem nível, timestamp ou origem. E-mails de usuários são escritos na saída padrão em cadastro e login (`controllers.py:161`, `:179`, `:182`).
 - **Impact:** Não dá para filtrar por severidade nem enviar a um agregador de logs, e dados pessoais acabam em logs sem controle.
 - **Recommendation:** Usar o módulo `logging` com `logger = logging.getLogger(__name__)` e níveis adequados, evitando registrar PII (ou mascarando-a).
-- **Status:** ⚠️ Parcialmente corrigido — `print` foi substituído por `logging` (`app.py:16`, `logger` nos services), mas os e-mails continuam sendo logados em `services/usuario_service.py:35`, `:45` e `:48`.
+- **Status:** ✅ Corrigido — `print` foi substituído por `logging` (`app.py:16`, `logger` nos services). Os e-mails passam por `_mascarar_email` (`services/usuario_service.py:11-16`) antes de ir para o log (ex.: `j***@email.com`).
 
 ### [LOW] L5 — Lista de categorias válidas hardcoded no controller
 - **File:** `controllers.py`
