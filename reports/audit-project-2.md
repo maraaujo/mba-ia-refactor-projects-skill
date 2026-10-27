@@ -1,204 +1,152 @@
-# Relatório de Auditoria e Refatoração Arquitetural
+# Architectural Audit Report — ecommerce-api-legacy
 
-**Projeto:** `ecommerce-api-legacy`
-**Skill:** `refactor-arch`
-**Data:** 2026-09-05
-
----
-
-## Fase 1 — Análise do Projeto
+## Project Analysis
 
 - **Language:** JavaScript (Node.js)
 - **Framework:** Express 4.18.2
-- **Database:** SQLite (`sqlite3` v5.1.6, banco em memória — `:memory:`)
-- **ORM / Database Library:** Nenhum ORM — acesso via driver `sqlite3` cru, com SQL parametrizado
-- **Application Type:** API REST (checkout/matrícula em cursos — mistura de e-commerce e LMS)
+- **Database:** SQLite em memória (`:memory:`) via `sqlite3` 5.1.6
+- **ORM / Database Library:** Nenhum ORM — driver `sqlite3` direto, com SQL parametrizado
+- **Application Type:** API REST de checkout e matrícula em cursos (mistura de e-commerce e LMS) — 3 endpoints
 - **Entry Point:** `src/app.js`
-- **Arquitetura original:** Sem camadas — uma única classe (`AppManager`) concentrava inicialização de banco, definição de rotas e regra de negócio. `utils.js` misturava configuração, estado global e criptografia. Não havia Models, Controllers, Services ou Routes separados.
-- **Diretórios principais (antes):** `src/` com apenas 3 arquivos (`app.js`, `AppManager.js`, `utils.js`)
-- **Principais problemas arquiteturais identificados:**
-  - God Class (`AppManager`) com múltiplas responsabilidades
-  - Lógica de negócio embutida diretamente nas rotas
-  - Credenciais e chaves sensíveis hardcoded
-  - Ausência de autenticação/autorização em rotas administrativas e destrutivas
-  - Estado global mutável (`globalCache`, `totalRevenue`)
-  - Callback hell e N+1 queries no relatório financeiro
+- **Current Architecture:** Sem camadas. A classe `AppManager` (`src/AppManager.js`) cria e popula o schema, registra todas as rotas e contém toda a regra de negócio. `src/utils.js` mistura configuração, estado global e "criptografia". Não há Models, Controllers, Services nem Routes separados.
+- **Main Directories:** `src/` com 3 arquivos (`app.js`, `AppManager.js`, `utils.js`)
+- **Main Architectural Problems:** God Class (`AppManager`); regra de negócio dentro dos callbacks de rota; credenciais e chave de pagamento hardcoded; rotas administrativas e destrutivas sem autenticação; estado global mutável; callback hell e N+1 no relatório financeiro.
 
----
+## Summary
 
-## Fase 2 — Findings da Auditoria
-
-### Resumo de Severidade
-
-| Severidade | Qtde |
+| Severity | Count |
 |---|---|
 | CRITICAL | 2 |
 | HIGH | 4 |
 | MEDIUM | 4 |
 | LOW | 3 |
+| **Total** | **13** |
 
-### Findings Detalhados
+## Notes
 
-**1. [CRITICAL] Credenciais e chaves sensíveis hardcoded**
-- **Arquivo/trecho:** `src/utils.js:3-9` — `dbPass: "senha_super_secreta_prod_123"`, `paymentGatewayKey: "pk_live_1234567890abcdef"`
-- **Descrição:** Objeto `config` com usuário/senha de banco e chave de gateway de pagamento (aparentando ser chave de produção) hardcoded no código-fonte e versionado no repositório.
-- **Impacto:** Vazamento de credenciais de produção para qualquer pessoa com acesso ao repositório; comprometimento do gateway de pagamento e do banco.
-- **Recomendação:** Extrair para variáveis de ambiente, nunca commitar segredos, adicionar `.env` ao `.gitignore`, rotacionar as chaves já expostas.
+> Observações sobre o processo de auditoria — não são findings de código.
 
-**2. [CRITICAL] Exposição de dados sensíveis em log**
-- **Arquivo/trecho:** `src/AppManager.js:49` — `console.log(\`Processando cartão ${cc} na chave ${config.paymentGatewayKey}\`)`
-- **Descrição:** Número completo do cartão de crédito e a chave do gateway de pagamento eram impressos em log de aplicação.
-- **Impacto:** Violação de PCI-DSS, vazamento de dados de cartão via logs (arquivo, stdout, agregadores de log).
-- **Recomendação:** Nunca logar PAN/segredos; mascarar dados sensíveis se o log for necessário.
+- **Código auditado:** snapshot original do projeto no commit `6d1ce62`. Todos os arquivos e linhas citados em `File` / `Line/Snippet` referem-se a esse snapshot. `src/AppManager.js` e `src/utils.js` não existem mais na árvore atual, porque foram substituídos na Fase 3.
+- **Revisão de formato (2026-10-27):** o relatório foi reescrito no formato de `report-template.md`, com os 5 campos obrigatórios separados em todos os findings. As linhas foram reconferidas no snapshot. A versão anterior tinha várias referências deslocadas, como o log do cartão citado em `AppManager.js:49` (correto: `:45`), as rotas administrativas em `:87`/`:139` (corretos: `:80`/`:131`) e a classe em `:7-150` (correto: `:4-139`). O conteúdo dos 13 findings não mudou.
+- **Campo `Status`:** cada finding traz um campo extra `Status` com o resultado da Fase 3, conferido na árvore atual. Esse campo não substitui nenhum dos cinco campos obrigatórios.
+- **Histórico:**
+  - **2026-09-05** — Fase 3 aplicada. `AppManager.js` e `utils.js` foram substituídos pela estrutura `src/{config,constants,database,models,services,controllers,routes,middleware,utils}`, e `src/app.js` virou o composition root. Foram adicionados `.env.example`, `.gitignore`, as dependências `bcryptjs` e `dotenv` e o arquivo `api.http`.
+  - **Validação (2026-09-05):** `npm install` e `node src/app.js` rodaram sem erros de boot, e o schema e o seed foram criados. Os 3 endpoints originais foram testados com `curl`:
+    - checkout aprovado (`200`), recusado (`400`) e usuário novo sem senha (`400`);
+    - relatório financeiro sem `x-admin-key` (`401`) e com a chave (`200`, query única);
+    - exclusão de usuário sem chave (`401`) e com chave (`200`);
+    - relatório após a exclusão, sem as matrículas e os pagamentos do usuário removido (exclusão em cascata).
 
-**3. [HIGH] Criptografia de senha insegura e reversível**
-- **Arquivo/trecho:** `src/utils.js:20-26` (`badCrypto`), uso em `src/AppManager.js:75`
-- **Descrição:** "Hash" de senha era apenas Base64 repetido 10.000 vezes e truncado — reversível e sem salt. Se a senha não fosse enviada, usava fallback inseguro `"123456"`.
-- **Impacto:** Senhas de usuários recuperáveis trivialmente; contas comprometidas em caso de vazamento do banco.
-- **Recomendação:** Usar `bcrypt`/`argon2` com salt por usuário; exigir senha obrigatória no cadastro.
+    A única mudança de contrato é intencional: o header `x-admin-key` passou a ser exigido nas duas rotas administrativas.
 
-**4. [HIGH] Ausência de autenticação/autorização em rotas sensíveis**
-- **Arquivo/trecho:** `src/AppManager.js:87` (`GET /api/admin/financial-report`) e `src/AppManager.js:139` (`DELETE /api/users/:id`)
-- **Descrição:** Rota administrativa de relatório financeiro e rota de exclusão de usuário não possuíam nenhuma verificação de autenticação/autorização.
-- **Impacto:** Qualquer chamador não autenticado podia ler dados financeiros de todos os alunos ou apagar contas de usuário.
-- **Recomendação:** Adicionar middleware de autenticação e checagem de permissão antes de processar essas rotas.
+## Findings
 
-**5. [HIGH] God Class com múltiplas responsabilidades**
-- **Arquivo/trecho:** `src/AppManager.js` (classe inteira, linhas 7-150)
-- **Descrição:** Uma única classe era responsável por criar/seedar o schema do banco, registrar todas as rotas HTTP e conter toda a regra de negócio (checkout, pagamento, matrícula, relatório).
-- **Impacto:** Alto acoplamento, dificuldade de testar isoladamente, mudanças em uma responsabilidade arriscavam quebrar outras.
-- **Recomendação:** Separar em Models, Controllers, Services e módulo dedicado de conexão com banco.
+### [CRITICAL] Credenciais e chave de pagamento hardcoded
+- **File:** `src/utils.js`
+- **Line/Snippet:** `src/utils.js:1-7` — `dbPass: "senha_super_secreta_prod_123"` (linha 3), `paymentGatewayKey: "pk_live_1234567890abcdef"` (linha 4)
+- **Description:** O objeto `config` contém usuário e senha de banco e uma chave de gateway de pagamento com prefixo de produção (`pk_live_`), versionados no repositório.
+- **Impact:** Qualquer pessoa com acesso ao repositório obtém credenciais de produção, o que permite comprometer o gateway de pagamento e o banco.
+- **Recommendation:** Ler os valores de variáveis de ambiente, manter `.env` fora do versionamento e rotacionar as chaves já expostas.
+- **Status:** ✅ Corrigido — `src/config/env.js:4-7` lê `PORT`, `DATABASE_URL`, `PAYMENT_GATEWAY_KEY` e `ADMIN_API_KEY` do ambiente, e há `.env.example`. As configurações não usadas (`dbUser`, `dbPass`, `smtpUser`) foram removidas.
 
-**6. [HIGH] Lógica de negócio dentro da definição das rotas**
-- **Arquivo/trecho:** `src/AppManager.js:31-85` (rota `/api/checkout`)
-- **Descrição:** Decisão de aprovação/recusa de pagamento, criação de usuário, matrícula, registro de pagamento e auditoria eram orquestrados diretamente no callback da rota.
-- **Impacto:** Regra de negócio não reutilizável nem testável independentemente da camada HTTP.
-- **Recomendação:** Extrair para um Service dedicado; a rota apenas delega e traduz a resposta HTTP.
+### [CRITICAL] Número de cartão e chave do gateway escritos em log
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:45` — ``console.log(`Processando cartão ${cc} na chave ${config.paymentGatewayKey}`)``
+- **Description:** A cada checkout, o número completo do cartão e a chave do gateway vão para o stdout da aplicação.
+- **Impact:** Violação de PCI-DSS. Dados de cartão e segredos ficam expostos em qualquer destino de log (arquivo, agregador, console de deploy).
+- **Recommendation:** Nunca registrar PAN ou segredos. Se o log for necessário, mascarar o cartão (ex.: últimos 4 dígitos).
+- **Status:** ✅ Corrigido — `src/services/paymentGatewayService.js` decide o status sem logar dados sensíveis. O único `console.log` restante é a mensagem de boot em `src/app.js:23`.
 
-**7. [MEDIUM] N+1 Queries no relatório financeiro**
-- **Arquivo/trecho:** `src/AppManager.js:97-134`
-- **Descrição:** Para cada curso, buscava matrículas; para cada matrícula, disparava duas queries adicionais (usuário e pagamento) dentro de `forEach`.
-- **Impacto:** Degradação de performance severa conforme a base cresce.
-- **Recomendação:** Substituir por uma única query com `JOIN`, agregando os dados na aplicação.
+### [HIGH] "Hash" de senha reversível e senha padrão fraca
+- **File:** `src/utils.js`, `src/AppManager.js`
+- **Line/Snippet:** `src/utils.js:17-23` (`badCrypto`: Base64 repetido e truncado em 10 caracteres); `src/AppManager.js:68` — `let hash = badCrypto(p || "123456");`
+- **Description:** A função usada como hash é só uma codificação Base64 dos dois primeiros caracteres, sem salt. Se o cliente não envia senha, o usuário é criado com a senha `"123456"`.
+- **Impact:** Senhas recuperáveis ou colidíveis trivialmente, e contas criadas no checkout ficam acessíveis com uma senha conhecida.
+- **Recommendation:** Usar `bcrypt`/`argon2` com salt e tornar a senha obrigatória ao criar usuário.
+- **Status:** ✅ Corrigido — `src/services/passwordService.js:1-10` usa `bcryptjs`. `src/services/checkoutService.js:21` responde `400` quando um usuário novo não envia senha.
 
-**8. [MEDIUM] Callback hell / aninhamento profundo**
-- **Arquivo/trecho:** `src/AppManager.js:41-84`
-- **Descrição:** O handler de checkout aninhava `db.get`/`db.run` em 5+ níveis de callbacks.
-- **Impacto:** Código difícil de ler, propagação de erro inconsistente, alto risco de bugs em manutenção.
-- **Recomendação:** Promisificar as chamadas do banco e reescrever com `async/await`.
+### [HIGH] Rotas administrativa e destrutiva sem autenticação
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:80` — `app.get('/api/admin/financial-report', ...)`; `src/AppManager.js:131` — `app.delete('/api/users/:id', ...)`
+- **Description:** O relatório financeiro de todos os alunos e a exclusão de usuários não verificam identidade nem permissão.
+- **Impact:** Qualquer cliente anônimo lê dados financeiros e nomes de alunos e apaga contas.
+- **Recommendation:** Aplicar um middleware de autenticação/autorização administrativa nessas rotas, com o segredo vindo da configuração.
+- **Status:** ✅ Corrigido — `src/middleware/adminAuth.js:4-12` exige o header `x-admin-key` igual a `ADMIN_API_KEY` e é aplicado em `src/routes/reportRoutes.js:7` e `src/routes/userRoutes.js:7`.
 
-**9. [MEDIUM] Tratamento de erros inconsistente**
-- **Arquivo/trecho:** `src/AppManager.js:142-145` (`DELETE /api/users/:id` ignorava `err`) vs. demais rotas
-- **Descrição:** Algumas rotas verificavam `err` e respondiam com status apropriado; a rota de exclusão de usuário ignorava completamente o erro do `db.run`.
-- **Impacto:** Falhas silenciosas, resposta de sucesso mesmo quando a exclusão falhava.
-- **Recomendação:** Centralizar tratamento de erros com middleware de erro do Express.
+### [HIGH] God Class com múltiplas responsabilidades
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:4-139` — classe `AppManager`. Contém `initDb()` (schema + seed, linhas 10-23) e `setupRoutes()` (rotas + regra de negócio, linhas 25-138).
+- **Description:** Uma única classe cria e popula o banco, registra todas as rotas HTTP e implementa checkout, pagamento, matrícula, auditoria, relatório e exclusão.
+- **Impact:** Alto acoplamento. Nenhuma parte pode ser testada isoladamente, e qualquer alteração arrisca quebrar fluxos não relacionados.
+- **Recommendation:** Separar em módulo de banco (conexão, schema, seed), Models, Services, Controllers e Routes.
+- **Status:** ✅ Corrigido — `AppManager.js` foi removido. As responsabilidades estão em `src/database/`, `src/models/`, `src/services/`, `src/controllers/` e `src/routes/`.
 
-**10. [MEDIUM] Estado global mutável**
-- **Arquivo/trecho:** `src/utils.js:11-18` (`globalCache`), uso em `src/AppManager.js:66`
-- **Descrição:** `globalCache` era um objeto de módulo mutado a cada requisição, compartilhado entre todas as requisições concorrentes.
-- **Impacto:** Condições de corrida, comportamento imprevisível sob concorrência, acoplamento oculto entre requisições.
-- **Recomendação:** Remover o estado global ou substituir por cache explícito.
+### [HIGH] Regra de negócio dentro do callback da rota de checkout
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:28-78` — `app.post('/api/checkout', ...)`. Inclui a decisão de pagamento (linhas 45-48), a criação de usuário (66-72), a matrícula (50), o pagamento (54) e a auditoria (57).
+- **Description:** A orquestração inteira do checkout está no handler HTTP: validação, busca de curso, criação de usuário, decisão de aprovação, gravação de matrícula, pagamento e log de auditoria.
+- **Impact:** A regra não pode ser reutilizada nem testada sem o Express, e erros de negócio e de HTTP ficam misturados.
+- **Recommendation:** Extrair para um `checkoutService`. A rota/controller só lê o request e traduz o resultado em resposta HTTP.
+- **Status:** ✅ Corrigido — `src/services/checkoutService.js:11` (`checkout`) é chamado pelo controller fino `src/controllers/checkoutController.js:4`.
 
-**11. [LOW] Integridade referencial quebrada na exclusão de usuário**
-- **Arquivo/trecho:** `src/AppManager.js:139-146`
-- **Descrição:** Exclusão de usuário não removia/tratava matrículas e pagamentos associados — o próprio texto de resposta admitia: "matrículas e pagamentos ficaram sujos no banco".
-- **Impacto:** Registros órfãos, relatórios financeiros incorretos no futuro.
-- **Recomendação:** Tratar a limpeza transacionalmente (cascata) em um Service dedicado.
+### [MEDIUM] N+1 queries no relatório financeiro
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:89-127` — para cada curso, `SELECT * FROM enrollments WHERE course_id = ?` (linha 92); para cada matrícula, `SELECT name, email FROM users` (linha 104) e `SELECT amount, status FROM payments` (linha 106)
+- **Description:** O número de queries é 1 + C + 2·M (C cursos, M matrículas), todas disparadas dentro de `forEach`.
+- **Impact:** A latência cresce linearmente com a base, e a contagem manual de callbacks pendentes torna o código frágil.
+- **Recommendation:** Uma única query com `LEFT JOIN` entre cursos, matrículas, usuários e pagamentos, agregada na aplicação.
+- **Status:** ✅ Corrigido — `src/models/reportModel.js:1-13` faz uma única query com `LEFT JOIN`, e a agregação fica em `src/services/reportService.js:4`.
 
-**12. [LOW] Nomes pouco descritivos e magic strings/values**
-- **Arquivo/trecho:** `src/AppManager.js:33-37, 53` (`u`, `e`, `p`, `cid`, `cc`, status `"PAID"`/`"DENIED"`, prefixo mágico `"4"` do cartão)
-- **Descrição:** Variáveis de uma letra e literais de string/número espalhados sem constantes nomeadas.
-- **Impacto:** Reduz legibilidade e manutenibilidade, aumenta risco de erro ao alterar regra de negócio.
-- **Recomendação:** Renomear para nomes completos e extrair constantes nomeadas.
+### [MEDIUM] Callback hell no fluxo de checkout
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:37-77` — `db.get` (curso) → `db.get` (usuário) → `db.run` (matrícula) → `db.run` (pagamento) → `db.run` (auditoria), 5 níveis aninhados, alternando `this` e `self` (linhas 50, 54, 57)
+- **Description:** O fluxo é escrito com callbacks aninhados, e cada nível trata ou ignora o erro de um jeito.
+- **Impact:** Leitura difícil, propagação de erro inconsistente e risco de bugs de contexto (`this` vs `self`) em manutenção.
+- **Recommendation:** Promisificar o acesso ao banco e reescrever o fluxo com `async/await`.
+- **Status:** ✅ Corrigido — `src/database/Database.js` promisifica `run`/`get`/`all`, e o checkout é `async` (`src/services/checkoutService.js:11`).
 
-**13. [LOW] Código morto / variável não utilizada**
-- **Arquivo/trecho:** `src/utils.js:12,28` (`totalRevenue`)
-- **Descrição:** Variável declarada e exportada mas nunca lida ou atualizada de forma significativa.
-- **Impacto:** Ruído no código, falsa impressão de funcionalidade existente.
-- **Recomendação:** Remover.
+### [MEDIUM] Tratamento de erros inconsistente e erros ignorados
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:133-135` — o callback `(err) => { res.send(...) }` de `DELETE /api/users/:id` ignora `err`; também ignoram `err` as linhas 57 (auditoria), 92 (matrículas), 104 e 106 (usuário e pagamento no relatório)
+- **Description:** Algumas operações checam `err` e respondem 4xx/5xx; outras descartam o erro e seguem como se tivessem sucesso.
+- **Impact:** Falhas silenciosas, como responder sucesso quando a exclusão falhou ou quebrar com `enrollments.length` de `undefined` no relatório.
+- **Recommendation:** Propagar erros de forma uniforme até um middleware central de erro do Express.
+- **Status:** ✅ Corrigido — `src/middleware/errorHandler.js` está registrado em `src/app.js:20`, com `AppError` (`src/utils/AppError.js`) e `asyncHandler` (`src/utils/asyncHandler.js`) nos controllers.
 
----
+### [MEDIUM] Estado global mutável compartilhado entre requisições
+- **File:** `src/utils.js`, `src/AppManager.js`
+- **Line/Snippet:** `src/utils.js:9` — `let globalCache = {};`; `src/utils.js:12-15` (`logAndCache` mutando o objeto); uso em `src/AppManager.js:59`
+- **Description:** Um objeto de módulo é escrito a cada checkout e compartilhado por todas as requisições concorrentes, sem limite de tamanho nem leitura em lugar nenhum.
+- **Impact:** Acoplamento oculto entre requisições e crescimento de memória sem limite.
+- **Recommendation:** Remover o cache ou, se necessário, substituí-lo por um cache explícito e injetado.
+- **Status:** ✅ Corrigido — `globalCache` e `logAndCache` foram removidos e não há estado de módulo mutável em `src/`.
 
-## Fase 3 — Correções Realizadas
+### [LOW] Exclusão de usuário deixa matrículas e pagamentos órfãos
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:131-137` — `DELETE FROM users WHERE id = ?` (linha 133); a própria resposta admite: `"Usuário deletado, mas as matrículas e pagamentos ficaram sujos no banco."` (linha 135)
+- **Description:** A exclusão remove só a linha de `users`, sem tratar `enrollments` e `payments` relacionados, e o schema não declara chaves estrangeiras (linhas 12-16).
+- **Impact:** Registros órfãos, e o relatório financeiro passa a mostrar alunos `Unknown` com receita de usuários inexistentes.
+- **Recommendation:** Remover pagamentos e matrículas do usuário antes dele, no serviço de usuário.
+- **Status:** ✅ Corrigido — `src/services/userService.js:5` remove pagamentos (`src/models/paymentModel.js:9-10`), matrículas (`src/models/enrollmentModel.js:13-14`) e depois o usuário (`src/models/userModel.js:13-14`).
 
-| # | Problema | Correção aplicada |
-|---|---|---|
-| 1 | Credenciais hardcoded | Extraídas para variáveis de ambiente (`src/config/env.js`, `.env.example`, `.gitignore`); nenhum segredo permanece no código-fonte |
-| 2 | Exposição de dados sensíveis em logs | Log do número de cartão e da chave do gateway removido; `paymentGatewayService` não loga dados sensíveis |
-| 3 | Hashing inseguro | `badCrypto` substituído por `bcryptjs` (`src/services/passwordService.js`); fallback de senha fraca removido — senha agora é obrigatória para novos usuários (400 se ausente) |
-| 4 | Ausência de autenticação em rotas administrativas | Middleware `adminAuth` (`src/middleware/adminAuth.js`) exigindo header `x-admin-key`, aplicado a `GET /api/admin/financial-report` e `DELETE /api/users/:id` |
-| 5 | God Class | `AppManager.js` removido; responsabilidades divididas em `models/`, `services/`, `controllers/`, `routes/`, `database/` |
-| 6 | Lógica de negócio nas rotas | Extraída para `checkoutService`, `reportService`, `userService`; controllers ficaram finos, apenas traduzindo request/response |
-| 7 | N+1 queries | Relatório financeiro reescrito com uma única query `JOIN` (`src/models/reportModel.js`) e agregação em memória |
-| 8 | Callback hell | Camada `Database` (`src/database/Database.js`) promisifica `run`/`get`/`all`; todo fluxo de checkout reescrito com `async/await` |
-| 9 | Tratamento inconsistente de erros | Middleware central `errorHandler` + classe `AppError` (`src/utils/AppError.js`, `src/middleware/errorHandler.js`) usada em todos os services/controllers |
-| 10 | Estado global mutável | `globalCache` e `totalRevenue` removidos completamente (eram código morto/inseguro) |
-| 11 | Registros órfãos | `userService.deleteUser` agora remove pagamentos e matrículas associados antes de excluir o usuário (exclusão em cascata) |
-| 12 | Magic strings/naming | Constante `PAYMENT_STATUS` (`src/constants/paymentStatus.js`); variáveis internas renomeadas para nomes descritivos (contrato externo dos campos JSON da API preservado: `usr`, `eml`, `pwd`, `c_id`, `card`) |
-| 13 | Código morto | `totalRevenue` e configs não utilizadas (`dbUser`, `dbPass`, `smtpUser`) removidas |
+### [LOW] Nomes pouco descritivos e magic strings
+- **File:** `src/AppManager.js`
+- **Line/Snippet:** `src/AppManager.js:29-33` — `let u`, `e`, `p`, `cid`, `cc`; `src/AppManager.js:46` — `cc.startsWith("4") ? "PAID" : "DENIED"`; `src/AppManager.js:108` — `payment.status === 'PAID'`
+- **Description:** Variáveis de uma letra e literais de status e de regra de cartão repetidos sem constante nomeada.
+- **Impact:** Leitura difícil, e alterar um status exige caçar literais, com risco de divergência.
+- **Recommendation:** Renomear as variáveis e extrair constantes de status de pagamento.
+- **Status:** ✅ Corrigido — `src/constants/paymentStatus.js:1-6` (`PAYMENT_STATUS`), usado em services e no seed, com nomes internos descritivos (`username`, `email`, `cardNumber`...). Os nomes dos campos JSON da API (`usr`, `eml`, `pwd`, `c_id`, `card`) foram mantidos para preservar o contrato.
 
-### Nova Estrutura Arquitetural (MVC)
+### [LOW] Código morto — `totalRevenue`
+- **File:** `src/utils.js`, `src/AppManager.js`
+- **Line/Snippet:** `src/utils.js:10` — `let totalRevenue = 0;`, exportado em `src/utils.js:25`; importado em `src/AppManager.js:2` e nunca usado
+- **Description:** Variável declarada, exportada e importada, mas nunca lida nem atualizada.
+- **Impact:** Ruído, e sugere um acumulador de receita que não existe.
+- **Recommendation:** Remover.
+- **Status:** ✅ Corrigido — removida junto com `src/utils.js`.
 
-```
-src/
-  app.js                     — composition root
-  config/
-    env.js                   — configuração via variáveis de ambiente
-  database/
-    Database.js              — wrapper promisificado do sqlite3
-    connection.js             — criação da conexão
-    schema.js                 — criação das tabelas
-    seed.js                   — dados de seed (senha já hasheada)
-  constants/
-    paymentStatus.js          — enum PAYMENT_STATUS
-  models/
-    userModel.js, courseModel.js, enrollmentModel.js,
-    paymentModel.js, auditLogModel.js, reportModel.js
-  services/
-    checkoutService.js, reportService.js, userService.js,
-    passwordService.js, paymentGatewayService.js
-  controllers/
-    checkoutController.js, reportController.js, userController.js
-  routes/
-    index.js, checkoutRoutes.js, reportRoutes.js, userRoutes.js
-  middleware/
-    errorHandler.js, adminAuth.js
-  utils/
-    AppError.js, asyncHandler.js
-```
-
-`AppManager.js` e o antigo `utils.js` foram removidos, substituídos pela estrutura acima.
-
-Arquivos de suporte adicionados/atualizados: `.env.example`, `.gitignore`, `package.json` (dependências `bcryptjs` e `dotenv`), `README.md`, `api.http`.
+## Total: 13 findings
 
 ---
 
-## Validações Executadas
-
-1. **Dependências:** `npm install` executado com sucesso (`bcryptjs`, `dotenv`, `express`, `sqlite3`)
-2. **Imports/sintaxe:** aplicação carregada sem erros de módulo
-3. **Inicialização da aplicação:** `node src/app.js` sobe o servidor na porta configurada sem erros de boot
-4. **Conexão com banco:** schema criado e seed executado com sucesso no SQLite em memória
-5. **Rotas/endpoints existentes:** todos os 3 endpoints originais preservados (`POST /api/checkout`, `GET /api/admin/financial-report`, `DELETE /api/users/:id`)
-6. **Operações principais:** fluxo de checkout (usuário novo/existente, aprovação/recusa de pagamento), geração de relatório financeiro e exclusão de usuário testados manualmente via `curl`
-
-### Resultado dos Testes de Endpoints
-
-| Teste | Requisição | Resultado |
-|---|---|---|
-| Checkout — usuário novo, pagamento aprovado | `POST /api/checkout` (cartão iniciando com `4`) | `200` — `{"msg":"Sucesso","enrollment_id":2}` |
-| Checkout — pagamento recusado | `POST /api/checkout` (cartão iniciando com `5`) | `400` — `"Pagamento recusado"` |
-| Checkout — usuário novo sem senha | `POST /api/checkout` (sem `pwd`) | `400` — `"Senha obrigatória para novo usuário"` (fix da senha fraca padrão) |
-| Relatório administrativo sem header de auth | `GET /api/admin/financial-report` | `401` (fix da falta de autenticação) |
-| Relatório administrativo com header de auth | `GET /api/admin/financial-report` + `x-admin-key` | `200` — JSON correto, sem N+1 (query única) |
-| Exclusão de usuário sem header de auth | `DELETE /api/users/1` | `401` (fix da falta de autenticação) |
-| Exclusão de usuário com header de auth | `DELETE /api/users/1` + `x-admin-key` | `200` — `"Usuário deletado com sucesso."` |
-| Relatório após exclusão do usuário | `GET /api/admin/financial-report` | Curso "Clean Architecture" retornou `revenue: 0` e `students: []` — confirmando que matrículas/pagamentos foram removidos em cascata (fix dos registros órfãos) |
-
-Todos os testes confirmaram que o comportamento e os contratos de entrada/saída da API foram preservados, com exceção da exigência do header `x-admin-key` nas duas rotas administrativas — mudança intencional para corrigir a falha crítica de ausência de autenticação (finding #4).
-
----
-
-## Conclusão
-
-Todos os 13 findings identificados na Fase 2 foram corrigidos na Fase 3. A aplicação foi migrada de uma estrutura monolítica (God Class) para uma arquitetura MVC em camadas (Models, Services, Controllers, Routes, Middleware, Database, Config), com validação funcional completa via testes manuais de todos os endpoints.
+Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]

@@ -282,3 +282,11 @@ Python:
 
 ```bash
 python app.py
+```
+
+Node.js:
+
+```bash
+npm install
+npm start
+```
