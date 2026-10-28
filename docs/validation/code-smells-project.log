@@ -1,0 +1,72 @@
+# code-smells-project — 2026-10-28T14:12:22
+$ python app.py
+servidor ouvindo em http://127.0.0.1:5101
+PASS 200 (esperado 200) GET / — index
+PASS 200 (esperado 200) GET /produtos — listar produtos
+PASS 200 (esperado 200) GET /produtos/busca?q=mouse&preco_min=10 — buscar produtos
+PASS 200 (esperado 200) GET /produtos/1 — produto por id
+PASS 201 (esperado 201) POST /produtos — criar produto
+PASS 400 (esperado 400) POST /produtos — criar produto inválido
+PASS 200 (esperado 200) PUT /produtos/11 — atualizar produto
+PASS 200 (esperado 200) DELETE /produtos/11 — deletar produto
+PASS 200 (esperado 200) GET /usuarios — listar usuários
+PASS 200 (esperado 200) GET /usuarios/1 — usuário por id
+PASS 201 (esperado 201) POST /usuarios — criar usuário
+PASS 200 (esperado 200) POST /login — login válido
+PASS 401 (esperado 401) POST /login — login com SQL injection
+PASS 201 (esperado 201) POST /pedidos — criar pedido
+PASS 400 (esperado 400) POST /pedidos — criar pedido com quantidade negativa
+PASS 200 (esperado 200) GET /pedidos — listar pedidos
+PASS 200 (esperado 200) GET /pedidos/usuario/2 — pedidos do usuário
+PASS 200 (esperado 200) PUT /pedidos/1/status — atualizar status do pedido
+PASS 200 (esperado 200) GET /relatorios/vendas — relatório de vendas
+PASS 200 (esperado 200) GET /health — health
+PASS 410 (esperado 410) POST /admin/query — /admin/query neutralizado
+PASS 200 (esperado 200) GET /produtos/1 — tabela produtos intacta após DROP
+PASS 403 (esperado 403) POST /admin/reset-db — reset-db sem token
+PASS 200 (esperado 200) POST /admin/reset-db — reset-db com token
+RESULTADO: 24 passaram, 0 falharam
+--- saída do servidor ---
+2026-10-28 14:12:22,837 INFO app: ==================================================
+2026-10-28 14:12:22,837 INFO app: SERVIDOR INICIADO
+2026-10-28 14:12:22,837 INFO app: Rodando em http://localhost:5101
+2026-10-28 14:12:22,837 INFO app: ==================================================
+ * Serving Flask app 'app'
+ * Debug mode: off
+2026-10-28 14:12:22,853 INFO werkzeug: WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5101
+2026-10-28 14:12:22,854 INFO werkzeug: Press CTRL+C to quit
+2026-10-28 14:12:23,219 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET / HTTP/1.1" 200 -
+2026-10-28 14:12:23,231 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /produtos HTTP/1.1" 200 -
+2026-10-28 14:12:23,246 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /produtos/busca?q=mouse&preco_min=10 HTTP/1.1" 200 -
+2026-10-28 14:12:23,248 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /produtos/1 HTTP/1.1" 200 -
+2026-10-28 14:12:23,277 INFO services.produto_service: Produto criado com ID: 11
+2026-10-28 14:12:23,278 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /produtos HTTP/1.1" 201 -
+2026-10-28 14:12:23,290 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /produtos HTTP/1.1" 400 -
+2026-10-28 14:12:23,297 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "PUT /produtos/11 HTTP/1.1" 200 -
+2026-10-28 14:12:23,330 INFO services.produto_service: Produto 11 deletado
+2026-10-28 14:12:23,330 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "DELETE /produtos/11 HTTP/1.1" 200 -
+2026-10-28 14:12:23,333 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /usuarios HTTP/1.1" 200 -
+2026-10-28 14:12:23,355 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /usuarios/1 HTTP/1.1" 200 -
+2026-10-28 14:12:23,465 INFO services.usuario_service: Usuário criado: t***@t.com
+2026-10-28 14:12:23,465 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /usuarios HTTP/1.1" 201 -
+2026-10-28 14:12:23,567 INFO services.usuario_service: Login bem-sucedido: a***@loja.com
+2026-10-28 14:12:23,568 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /login HTTP/1.1" 200 -
+2026-10-28 14:12:23,570 INFO services.usuario_service: Login falhou: ***
+2026-10-28 14:12:23,570 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /login HTTP/1.1" 401 -
+2026-10-28 14:12:23,578 INFO services.pedido_service: ENVIANDO EMAIL: Pedido 1 criado para usuario 2
+2026-10-28 14:12:23,578 INFO services.pedido_service: ENVIANDO SMS: Seu pedido foi recebido!
+2026-10-28 14:12:23,578 INFO services.pedido_service: ENVIANDO PUSH: Novo pedido recebido pelo sistema
+2026-10-28 14:12:23,578 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /pedidos HTTP/1.1" 201 -
+2026-10-28 14:12:23,602 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /pedidos HTTP/1.1" 400 -
+2026-10-28 14:12:23,618 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /pedidos HTTP/1.1" 200 -
+2026-10-28 14:12:23,633 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /pedidos/usuario/2 HTTP/1.1" 200 -
+2026-10-28 14:12:23,651 INFO services.pedido_service: NOTIFICAÇÃO: Pedido 1 foi aprovado! Preparar envio.
+2026-10-28 14:12:23,651 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "PUT /pedidos/1/status HTTP/1.1" 200 -
+2026-10-28 14:12:23,665 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /relatorios/vendas HTTP/1.1" 200 -
+2026-10-28 14:12:23,680 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /health HTTP/1.1" 200 -
+2026-10-28 14:12:23,695 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /admin/query HTTP/1.1" 410 -
+2026-10-28 14:12:23,698 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "GET /produtos/1 HTTP/1.1" 200 -
+2026-10-28 14:12:23,711 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /admin/reset-db HTTP/1.1" 403 -
+2026-10-28 14:12:23,731 INFO werkzeug: 127.0.0.1 - - [28/Oct/2026 14:12:23] "POST /admin/reset-db HTTP/1.1" 200 -

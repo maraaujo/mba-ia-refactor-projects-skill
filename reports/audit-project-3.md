@@ -15,17 +15,18 @@
   - `services/` — apenas `notification_service.py`;
   - `utils/` — helpers e constantes duplicados nas rotas;
   - `seed.py` — massa de dados inicial.
-- **Main Architectural Problems:** regra de negócio e validação dentro das rotas; autenticação falsa (token previsível) e rota de exclusão sem autorização; segredos hardcoded; hash MD5; N+1 nas listagens e relatórios; regra de "task atrasada" duplicada; `routes/report_routes.py` com conteúdo estranho que quebrava a sintaxe (ver Notes).
+- **Source Files Analyzed:** 15 arquivos Python, 1.158 linhas (10 com código; os 5 restantes são `__init__.py` e `database.py`, com 1 a 3 linhas). Os maiores são `routes/task_routes.py` (299), `routes/report_routes.py` (223), `routes/user_routes.py` (211) e `utils/helpers.py` (116).
+- **Main Architectural Problems:** debug mode fixo no entry point; regra de negócio e validação dentro das rotas; autenticação falsa (token previsível) e rota de exclusão sem autorização; segredos hardcoded; hash MD5; N+1 nas listagens e relatórios; regra de "task atrasada" duplicada; `routes/report_routes.py` com conteúdo estranho que quebrava a sintaxe (ver Notes).
 
 ## Summary
 
 | Severity | Count |
 |---|---|
 | CRITICAL | 2 |
-| HIGH | 3 |
+| HIGH | 4 |
 | MEDIUM | 3 |
 | LOW | 3 |
-| **Total** | **11** |
+| **Total** | **12** |
 
 ## Notes
 
@@ -40,7 +41,11 @@
   - imports de `utils/helpers.py`: linhas `:3-7`, não `:8-12`.
 
   Também foram acrescentadas ocorrências que a versão anterior omitia, como `json` não usado em `models/task.py:3` e `routes/report_routes.py:8`, e `datetime.utcnow()` em `models/category.py:11`. O conteúdo dos 11 findings não mudou.
-- **Campo `Status`:** cada finding traz um campo extra `Status` com o resultado da Fase 3, conferido na árvore atual. Na conferência, o finding de API deprecated está apenas parcialmente corrigido (`models/category.py:11` ainda usa `datetime.utcnow`).
+- **Campo `Status`:** cada finding traz um campo extra `Status` com o resultado da Fase 3, conferido na árvore atual.
+- **Revisão (2026-10-28):** ao subir o servidor real para validação, apareceu um problema que a execução original não registrou: **debug mode fixo** em `app.py:34`. Ele foi conferido no snapshot com o catálogo de anti-patterns e classificado como HIGH, e o total passou de 11 para 12. A revisão encontrou também dois resíduos da Fase 3, e os dois foram corrigidos:
+  - `app.py` continuava com `debug=True` e porta fixa;
+  - `models/category.py:11` ainda usava `datetime.utcnow`.
+- **Validação (2026-10-28):** `scripts/smoke_test.py` sobe o servidor real (`python app.py`) com banco temporário e roda o seed. Os 26 testes HTTP passaram, cobrindo todos os 22 endpoints originais mais os casos de erro e de autorização. O log está em `docs/validation/task-manager-api.log`.
 - **Histórico:**
   - **2026-09-05** — Fase 3 aplicada:
     - as rotas viraram controllers finos;
@@ -80,6 +85,14 @@
 - **Impact:** Quem tem acesso ao código pode forjar sessões e usar a conta de e-mail.
 - **Recommendation:** Ler os segredos de variáveis de ambiente (`python-dotenv` já está nas dependências, mas não era usado).
 - **Status:** ✅ Corrigido, com ressalva — `config.py` lê `SECRET_KEY` e a configuração SMTP do ambiente, e há `.env.example`. Porém `config.py:10` mantém o fallback fixo `'dev-secret-key-change-me'` quando a variável não está definida, e ele precisa ser sobrescrito em produção.
+
+### [HIGH] Debug mode fixo e servidor exposto em todas as interfaces
+- **File:** `app.py`
+- **Line/Snippet:** `app.py:34` — `app.run(debug=True, host='0.0.0.0', port=5000)`
+- **Description:** O servidor sobe sempre com o modo debug do Flask ligado, escutando em todas as interfaces de rede, e com a porta fixa no código.
+- **Impact:** O debugger do Werkzeug expõe stack traces e permite execução remota de código se for acessado. O reloader do modo debug também cria um segundo processo, o que trava o arquivo SQLite em ambientes como o Windows.
+- **Recommendation:** Ler debug e porta da configuração (variáveis de ambiente), com debug desligado por padrão.
+- **Status:** ✅ Corrigido em 2026-10-28 — `config.py:11-12` lê `FLASK_DEBUG` (padrão `false`) e `PORT`, e `app.py:44` usa `app.config['DEBUG']` e `app.config['PORT']`. As duas variáveis foram adicionadas ao `.env.example`.
 
 ### [HIGH] Exclusão de usuário sem autenticação nem autorização
 - **File:** `routes/user_routes.py`
@@ -182,12 +195,12 @@
 - **Description:** `Query.get()` é a API legada do SQLAlchemy 2.x (a recomendada é `db.session.get(Model, id)`), e `datetime.utcnow()` está deprecated desde o Python 3.12.
 - **Impact:** Baixo hoje, porque ainda funciona com warnings, mas essas APIs podem ser removidas em versões futuras.
 - **Recommendation:** Migrar para `db.session.get(...)` e `datetime.now(timezone.utc)`.
-- **Status:** ⚠️ Parcialmente corrigido:
+- **Status:** ✅ Corrigido:
   - `db.session.get(...)` é usado em toda a camada de services, e não restou nenhum `query.get(`;
-  - `datetime.utcnow()` foi trocado por `utils.helpers.utc_now()` em `models/task.py`, `models/user.py`, services e `seed.py`;
-  - porém `models/category.py:11` ainda usa `default=datetime.utcnow`.
+  - `datetime.utcnow()` foi trocado por `utils.helpers.utc_now()` em `models/`, services e `seed.py`, e nenhuma chamada a `datetime.utcnow` restou no projeto;
+  - o último resíduo, `models/category.py:11`, foi corrigido em 2026-10-28.
 
-## Total: 11 findings
+## Total: 12 findings
 
 ---
 

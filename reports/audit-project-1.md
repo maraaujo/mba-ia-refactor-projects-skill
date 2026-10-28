@@ -10,6 +10,7 @@
 - **Entry Point:** `app.py` (`app.run(...)` em `app.py:88`)
 - **Current Architecture:** Monolito plano, sem diretórios. `app.py` registra rotas e também contém handlers administrativos com SQL direto; `controllers.py` mistura parsing HTTP, validação e regra de negócio; `models.py` mistura SQL concatenado, regras de pedido/estoque e cálculo de desconto; `database.py` mantém uma conexão global e também cria schema e seed.
 - **Main Directories:** nenhum — todos os módulos na raiz (`app.py`, `controllers.py`, `models.py`, `database.py`)
+- **Source Files Analyzed:** 4 arquivos Python, 780 linhas (`app.py` 88, `controllers.py` 292, `database.py` 86, `models.py` 314)
 - **Main Architectural Problems:** SQL Injection sistêmico em `models.py`; endpoint de execução arbitrária de SQL; endpoints administrativos sem autenticação; segredos hardcoded e expostos via `/health`; senhas em texto plano; conexão global compartilhada entre threads; regras de negócio espalhadas entre controller e model; N+1 na listagem de pedidos.
 
 ## Summary
@@ -37,6 +38,7 @@
   - **2026-09-05 (ajuste)** — `POST /admin/query` restaurado como rota inerte (410 Gone) para preservar o contrato dos 19 endpoints; validado com payload `DROP TABLE`.
   - **2026-10-08** — Segunda rodada da Fase 3, sobre os itens que a re-auditoria encontrou em aberto: H6 (validação de itens e tipos), atomicidade da criação de pedido (observação de H5), M1 (busca de produtos do pedido em uma query) e L4 (e-mails mascarados no log). M6 não foi alterado (ver o finding).
   - **Validação (2026-10-08):** API executada em container `python:3.12-slim` com as dependências de `requirements.txt`. Passaram `compileall`, imports e boot sem erros, além de 38 checks HTTP contra o servidor real: os 19 endpoints originais, injection no login, 7 payloads inválidos de pedido (quantidade negativa, zero, string, bool, float, `produto_id` string, item/lista malformados), 4 payloads inválidos de produto, filtro de busca não numérico e `reset-db` com e sem token. Também passaram 2 checks de rollback (falha de FK no 2º item não deixa pedido nem baixa de estoque) e 3 checks da máscara de e-mail. Nenhum traceback no log do servidor.
+  - **Validação (2026-10-28):** `scripts/smoke_test.py` sobe o servidor real (`python app.py`) com banco temporário. Os 24 testes HTTP passaram: os 19 endpoints originais, o `/` e os casos de segurança, como injection no login, quantidade negativa no pedido, `/admin/query` com `DROP TABLE` respondendo 410 com a tabela intacta, e `reset-db` com e sem token. O log está em `docs/validation/code-smells-project.log`.
 
 ## Findings
 

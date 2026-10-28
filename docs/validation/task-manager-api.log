@@ -1,0 +1,64 @@
+# task-manager-api — 2026-10-28T14:12:24
+$ python seed.py -> exit 0
+$ python app.py
+servidor ouvindo em http://127.0.0.1:5103
+PASS 200 (esperado 200) GET / — index
+PASS 200 (esperado 200) GET /health — health
+PASS 200 (esperado 200) GET /tasks — listar tasks
+PASS 200 (esperado 200) GET /tasks/1 — task por id
+PASS 200 (esperado 200) GET /tasks/search?q=a — buscar tasks
+PASS 200 (esperado 200) GET /tasks/stats — estatísticas
+PASS 201 (esperado 201) POST /tasks — criar task
+PASS 400 (esperado 400) POST /tasks — criar task com título curto
+PASS 200 (esperado 200) PUT /tasks/1 — atualizar task
+PASS 200 (esperado 200) DELETE /tasks/2 — deletar task
+PASS 200 (esperado 200) GET /users — listar usuários
+PASS 200 (esperado 200) GET /users/1 — usuário por id
+PASS 201 (esperado 201) POST /users — criar usuário
+PASS 400 (esperado 400) POST /users — criar usuário com e-mail inválido
+PASS 200 (esperado 200) PUT /users/2 — atualizar usuário
+PASS 200 (esperado 200) GET /users/1/tasks — tasks do usuário
+PASS 401 (esperado 401) POST /login — login com senha errada
+PASS 200 (esperado 200) POST /login — login admin
+PASS 200 (esperado 200) GET /reports/summary — relatório resumo
+PASS 200 (esperado 200) GET /reports/user/1 — relatório por usuário
+PASS 200 (esperado 200) GET /categories — listar categorias
+PASS 201 (esperado 201) POST /categories — criar categoria
+PASS 200 (esperado 200) PUT /categories/1 — atualizar categoria
+PASS 401 (esperado 401) DELETE /users/3 — deletar usuário sem token
+PASS 200 (esperado 200) DELETE /users/3 — deletar usuário com token admin
+PASS 200 (esperado 200) DELETE /categories/4 — deletar categoria
+RESULTADO: 26 passaram, 0 falharam
+--- saída do servidor ---
+* Serving Flask app 'app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5103
+Press CTRL+C to quit
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /health HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /tasks HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /tasks/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /tasks/search?q=a HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /tasks/stats HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "POST /tasks HTTP/1.1" 201 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "POST /tasks HTTP/1.1" 400 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "PUT /tasks/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "DELETE /tasks/2 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /users HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /users/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "POST /users HTTP/1.1" 201 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "POST /users HTTP/1.1" 400 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "PUT /users/2 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "GET /users/1/tasks HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:26] "POST /login HTTP/1.1" 401 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "POST /login HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "GET /reports/summary HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "GET /reports/user/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "GET /categories HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "POST /categories HTTP/1.1" 201 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "PUT /categories/1 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "DELETE /users/3 HTTP/1.1" 401 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "DELETE /users/3 HTTP/1.1" 200 -
+127.0.0.1 - - [28/Oct/2026 14:12:27] "DELETE /categories/4 HTTP/1.1" 200 -

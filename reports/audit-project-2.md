@@ -10,6 +10,7 @@
 - **Entry Point:** `src/app.js`
 - **Current Architecture:** Sem camadas. A classe `AppManager` (`src/AppManager.js`) cria e popula o schema, registra todas as rotas e contém toda a regra de negócio. `src/utils.js` mistura configuração, estado global e "criptografia". Não há Models, Controllers, Services nem Routes separados.
 - **Main Directories:** `src/` com 3 arquivos (`app.js`, `AppManager.js`, `utils.js`)
+- **Source Files Analyzed:** 3 arquivos JavaScript, 180 linhas (`src/app.js` 14, `src/AppManager.js` 141, `src/utils.js` 25)
 - **Main Architectural Problems:** God Class (`AppManager`); regra de negócio dentro dos callbacks de rota; credenciais e chave de pagamento hardcoded; rotas administrativas e destrutivas sem autenticação; estado global mutável; callback hell e N+1 no relatório financeiro.
 
 ## Summary
@@ -38,6 +39,7 @@
     - relatório após a exclusão, sem as matrículas e os pagamentos do usuário removido (exclusão em cascata).
 
     A única mudança de contrato é intencional: o header `x-admin-key` passou a ser exigido nas duas rotas administrativas.
+  - **Validação (2026-10-28):** `scripts/smoke_test.py` sobe o servidor real (`node src/app.js`). Os 7 testes HTTP passaram, cobrindo os 3 endpoints com os casos de sucesso, recusa, senha ausente e autorização. O log está em `docs/validation/ecommerce-api-legacy.log`.
 
 ## Findings
 

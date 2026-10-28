@@ -1,0 +1,13 @@
+# ecommerce-api-legacy — 2026-10-28T14:12:23
+$ node src/app.js
+servidor ouvindo em http://127.0.0.1:5102
+PASS 200 (esperado 200) POST /api/checkout — checkout aprovado
+PASS 400 (esperado 400) POST /api/checkout — checkout recusado
+PASS 400 (esperado 400) POST /api/checkout — checkout usuário novo sem senha
+PASS 401 (esperado 401) GET /api/admin/financial-report — relatório financeiro sem chave
+PASS 200 (esperado 200) GET /api/admin/financial-report — relatório financeiro com chave
+PASS 401 (esperado 401) DELETE /api/users/1 — deletar usuário sem chave
+PASS 200 (esperado 200) DELETE /api/users/1 — deletar usuário com chave
+RESULTADO: 7 passaram, 0 falharam
+--- saída do servidor ---
+Frankenstein LMS rodando na porta 5102...
